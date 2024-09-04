@@ -1,0 +1,14 @@
+description: Install packages
+
+inputs:
+  packages:
+    type: string
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: sh
+      working-directory: ${{ github.action_path }}
+      run: |
+        ./install
