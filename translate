@@ -1,0 +1,47 @@
+#!/bin/sh
+set -eu
+
+matches() {
+  TARGET=${1%#*}
+  if [ "$TARGET" = "$1" ]; then
+    echo "$1"
+    return 0
+  elif [ "$TARGET" = "$PROFILE" ]; then
+    echo "${1#*#}"
+    return 0
+  else
+    return 1
+  fi
+}
+
+# apt-get[canonical]
+if command -v apt-get >/dev/null 2>&1; then
+  PROFILE=debian
+  echo apt:
+  cat | while read -r PATTERN; do
+    if ! NAME=$(matches "$PATTERN"); then continue; fi
+    echo "$NAME"
+  done
+  exit
+fi
+
+# apk[alpine]
+if command -v apk >/dev/null 2>&1; then
+  PROFILE=alpine
+  echo apk:
+  cat | while read -r PATTERN; do
+    if ! NAME=$(matches "$PATTERN"); then continue; fi
+    case "$NAME" in
+      build-essential) echo build-base ;;
+      dnsutils) echo bind-tools ;;
+      libboost-all-dev) echo boost-dev ;;
+      ninja-build) echo ninja ;;
+      ssh) echo openssh ;;
+      xz-utils) echo xz ;;
+      *) echo "$NAME" ;;
+    esac
+  done
+  exit
+fi
+
+exit 1

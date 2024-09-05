@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+MANIFEST=$(cat)
+while [ $# -gt 0 ]; do
+  if ! echo "$MANIFEST" | grep -q "^$1$"; then
+    echo "$1"
+  fi
+  shift
+done

@@ -1,0 +1,24 @@
+name: Test
+on: [ push ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - os: ubuntu-latest
+          - os: ubuntu-latest
+            container: debian:experimental-20240812
+          - os: ubuntu-latest
+            container: alpine:20240807
+    name: ${{ matrix.host.os }} ${{ matrix.host.container }}
+    runs-on: ${{ matrix.host.os }}
+    container: ${{ matrix.host.container }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          packages: |
+            curl
+            ssh

@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+SOURCES_KEY=$1; shift
+SOURCES_TAR=$1; shift
+PACKAGES_TAR=$1; shift
+SUDO=$(command -v sudo 2>/dev/null || true)
+
+# Update sources
+MANIFEST_KEY=$(cat /var/cache/apt/heritage 2>/dev/null || true)
+if [ "$MANIFEST_KEY" != "$SOURCES_KEY" ]; then
+	if [ "$SOURCES_TAR" = - ]; then
+		echo ::group::Update [no cache]
+		$SUDO apt-get -q update
+		echo ::endgroup::
+	elif [ -f "$SOURCES_TAR" ]; then
+		echo ::group::Update [cache hit]
+		tar xfv "$SOURCES_TAR" -C /
+		$SUDO apt-get -q update
+		echo ::endgroup::
+	else
+		echo ::group::Update [cache miss]
+		$SUDO apt-get -q update
+		$SUDO rm /var/lib/apt/lists/lock
+		$SUDO rmdir /var/lib/apt/lists/partial
+		tar cfv "$SOURCES_TAR" -C / var/lib/apt/lists
+		echo ::endgroup::
+	fi
+fi
+
+# Install packages
+if [ "$PACKAGES_TAR" = - ]; then
+	echo ::group::Install [no cache]
+	$SUDO apt-get -qq install --no-install-recommends -y "$@"
+	echo ::endgroup::
+elif [ -f "$PACKAGES_TAR" ]; then
+	echo ::group::Install [cache hit]
+	$SUDO tar xfv "$PACKAGES_TAR" -C /
+	$SUDO apt-get -qq install --no-install-recommends -y "$@"
+	echo ::endgroup::
+else
+	echo ::group::Install [cache miss]
+	$SUDO apt-get -qq install --no-install-recommends --download-only -y "$@"
+	$SUDO rm /var/cache/apt/archives/lock
+	$SUDO rmdir /var/cache/apt/archives/partial
+	tar cvf "$PACKAGES_TAR" -C / var/cache/apt/archives
+	$SUDO apt-get -qq install --no-install-recommends -y "$@"
+	echo ::endgroup::
+fi

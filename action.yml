@@ -1,6 +1,9 @@
 description: Install packages
 
 inputs:
+  cache:
+    type: boolean
+    default: true
   packages:
     type: string
     required: true
@@ -8,7 +11,107 @@ inputs:
 runs:
   using: composite
   steps:
+    # Workaround for busybox `tar`
     - shell: sh
-      working-directory: ${{ github.action_path }}
       run: |
-        ./install
+        # Checking and creating the directory also serves to avoid adding to the path over and over
+        # with repeated invocations.
+        if [ ! -e "$GITHUB_WORKSPACE/.install" ]; then
+          mkdir "$GITHUB_WORKSPACE/.install"
+          echo "$GITHUB_ACTION_PATH/shim-active" >> "$GITHUB_PATH"
+        fi
+        ln -s "$GITHUB_ACTION_PATH/shim" "$GITHUB_ACTION_PATH/shim-active"
+
+    # Check manifest
+    - shell: sh
+      id: manifest
+      working-directory: ${{ github.action_path }}
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      run: |
+        RESULT=$(echo "$PACKAGES" | ./manifest)
+        echo "strategy=${RESULT%%:*}" >> "$GITHUB_OUTPUT"
+        RESULT=${RESULT#*:}
+        echo "sources-key=${RESULT%%:*}" >> "$GITHUB_OUTPUT"
+        RESULT=${RESULT#*:}
+        echo "manifest-key=${RESULT%%:*}" >> "$GITHUB_OUTPUT"
+        RESULT=${RESULT#*:}
+        INSTALLED_KEY=${RESULT%%:*}
+        PACKAGES=${RESULT#*:}
+        echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
+        echo "packages-key=$(echo "$INSTALLED_KEY" "$PACKAGES" | sha256sum | cut -d' ' -f1 | cut -c-16)" >> "$GITHUB_OUTPUT"
+        cat "$GITHUB_OUTPUT"
+
+    # Restore sources cache
+    - uses: actions/cache/restore@v4
+      id: sources
+      if: |
+        inputs.cache &&
+        steps.manifest.outputs.packages != ''
+      with:
+        key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
+        path: .install/${{ steps.manifest.outputs.sources-key }}.tar
+
+    # Restore packages cache
+    - uses: actions/cache/restore@v4
+      id: packages
+      if: steps.sources.outcome == 'success'
+      with:
+        key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
+        path: .install/${{ steps.manifest.outputs.packages-key }}.tar
+
+    # Install
+    - shell: sh
+      if: steps.manifest.outputs.packages != ''
+      working-directory: ${{ github.action_path }}
+      env:
+        PACKAGES: ${{ steps.manifest.outputs.packages }}
+        PACKAGES_KEY: ${{ steps.manifest.outputs.packages-key }}
+        SOURCES_KEY: ${{ steps.manifest.outputs.sources-key }}
+        STRATEGY: ${{ steps.manifest.outputs.strategy }}
+      run: |
+        SOURCES_TAR=-
+        if [ ${{ steps.sources.outcome }} = success ]; then
+          SOURCES_TAR="$GITHUB_WORKSPACE/.install/$SOURCES_KEY.tar"
+        fi
+        PACKAGES_TAR=-
+        if [ ${{ steps.packages.outcome }} = success ]; then
+          PACKAGES_TAR="$GITHUB_WORKSPACE/.install/$PACKAGES_KEY.tar"
+        fi
+        mkdir -p "$GITHUB_WORKSPACE/.install"
+        "$STRATEGY/install" "$SOURCES_KEY" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
+
+    # Save sources cache
+    - uses: actions/cache/save@v4
+      if: |
+        steps.sources.outcome == 'success' &&
+        steps.sources.outputs.cache-hit != 'true'
+      with:
+        key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
+        path: .install/${{ steps.manifest.outputs.sources-key }}.tar
+
+    # Save packages cache
+    - uses: actions/cache/save@v4
+      if: |
+        steps.packages.outcome == 'success' &&
+        steps.packages.outputs.cache-hit != 'true'
+      with:
+        key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
+        path: .install/${{ steps.manifest.outputs.packages-key }}.tar
+
+    # Remove cache archives
+    - shell: sh
+      env:
+        PACKAGES_KEY: ${{ steps.manifest.outputs.packages-key }}
+        SOURCES_KEY: ${{ steps.manifest.outputs.sources-key }}
+      run: |
+        rm -f \
+          "$GITHUB_WORKSPACE/.install/$PACKAGES_KEY.tar" \
+          "$GITHUB_WORKSPACE/.install/$SOURCES_KEY.tar" \
+        ;
+
+    # Deactivate `tar` shim
+    - shell: sh
+      if: always()
+      run: |
+        rm "$GITHUB_ACTION_PATH/shim-active"

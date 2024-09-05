@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+MANIFEST=$(cat | ./translate)
+STRATEGY=${MANIFEST%:*}
+PACKAGES=${MANIFEST#*:}
+
+case "$STRATEGY" in
+  apt)
+    # shellcheck disable=SC2086
+    ./apt/manifest $PACKAGES ;;
+  apk)
+    # shellcheck disable=SC2086
+    ./apk/manifest $PACKAGES ;;
+  *) exit 1
+  ;;
+esac

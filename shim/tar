@@ -1,0 +1,26 @@
+#!/bin/sh
+# Thim shim serves two purpose:
+# 1) It allows actions/cache to work w/ busybox tar
+# 2) It disables gzip caching, since packages are already compressed by the distribution
+# Since #2 affects cache validity it must always be enabled even if GNU tar is available. Otherwise
+# you would end up with a gzip payload mismatch if a previous invocation used the shim.
+DIR=$(dirname "$0")
+trap 'mv "$DIR.running" "$DIR"' EXIT
+mv "$DIR" "$DIR.running"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -P) shift ;;
+    --exclude) shift 2 ;;
+    --posix) shift ;;
+    --files-from)
+      shift
+      tr '\n' '\0' <"$1"
+      shift
+      ;;
+    -z) shift ;;
+    *)
+      printf '%s\0' "$1"
+      shift
+      ;;
+  esac
+done | xargs -0 tar
