@@ -12,6 +12,7 @@ while [ $# -gt 0 ]; do
     -P) shift ;;
     --exclude) shift 2 ;;
     --posix) shift ;;
+    --use-compress-program) shift 2 ;;
     --files-from)
       shift
       tr '\n' '\0' <"$1"
