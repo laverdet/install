@@ -14,7 +14,7 @@ if [ "$MANIFEST_KEY" != "$SOURCES_KEY" ]; then
 		echo ::endgroup::
 	elif [ -f "$SOURCES_TAR" ]; then
 		echo ::group::Update [cache hit]
-		$SUDO tar xfv "$SOURCES_TAR" -C /
+		$SUDO tar xfv "$SOURCES_TAR" --overwrite -C /
 		echo ::endgroup::
 	else
 		echo ::group::Update [cache miss]
@@ -35,7 +35,7 @@ else
 	mkdir ~/.install
 	if [ -f "$PACKAGES_TAR" ]; then
 		echo ::group::Install [cache hit]
-		$SUDO tar xfv "$PACKAGES_TAR" -C ~/.install
+		$SUDO tar xfv "$PACKAGES_TAR" --overwrite -C ~/.install
 		$SUDO apk add ~/.install/*.apk
 		echo ::endgroup::
 	else

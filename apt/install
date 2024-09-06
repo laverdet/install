@@ -14,7 +14,7 @@ if [ "$MANIFEST_KEY" != "$SOURCES_KEY" ]; then
 		echo ::endgroup::
 	elif [ -f "$SOURCES_TAR" ]; then
 		echo ::group::Update [cache hit]
-		tar xfv "$SOURCES_TAR" -C /
+		tar xfv "$SOURCES_TAR" --overwrite -C /
 		$SUDO apt-get -q update
 		echo ::endgroup::
 	else
@@ -34,7 +34,7 @@ if [ "$PACKAGES_TAR" = - ]; then
 	echo ::endgroup::
 elif [ -f "$PACKAGES_TAR" ]; then
 	echo ::group::Install [cache hit]
-	$SUDO tar xfv "$PACKAGES_TAR" -C /
+	$SUDO tar xfv "$PACKAGES_TAR" --overwrite -C /
 	$SUDO apt-get -qq install --no-install-recommends -y "$@"
 	echo ::endgroup::
 else
