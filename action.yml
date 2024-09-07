@@ -49,7 +49,7 @@ runs:
         inputs.cache &&
         steps.manifest.outputs.packages != ''
       with:
-        key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
+        key: ${{ runner.environment }}/install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
         path: .install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Restore packages cache
@@ -57,7 +57,7 @@ runs:
       id: packages
       if: steps.sources.outcome == 'success'
       with:
-        key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
+        key: ${{ runner.environment }}/install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
         path: .install/${{ steps.manifest.outputs.packages-key }}.tar
 
     # Install
@@ -87,7 +87,7 @@ runs:
         steps.sources.outcome == 'success' &&
         steps.sources.outputs.cache-hit != 'true'
       with:
-        key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
+        key: ${{ runner.environment }}/install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
         path: .install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Save packages cache
@@ -96,7 +96,7 @@ runs:
         steps.packages.outcome == 'success' &&
         steps.packages.outputs.cache-hit != 'true'
       with:
-        key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
+        key: ${{ runner.environment }}/install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
         path: .install/${{ steps.manifest.outputs.packages-key }}.tar
 
     # Remove cache archives
