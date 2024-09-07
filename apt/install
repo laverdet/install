@@ -28,21 +28,22 @@ if [ "$MANIFEST_KEY" != "$SOURCES_KEY" ]; then
 fi
 
 # Install packages
+SPAM_EXPR="^Preparing to unpack|^Unpacking|^Selecting previously unselected package|^\(Reading database"
 if [ "$PACKAGES_TAR" = - ]; then
 	echo ::group::Install [no cache]
-	$SUDO apt-get -qq install --no-install-recommends -y "$@"
+	$SUDO apt-get -qq install --no-install-recommends -y "$@" | grep -Ev "$SPAM_EXPR"
 	echo ::endgroup::
 elif [ -f "$PACKAGES_TAR" ]; then
 	echo ::group::Install [cache hit]
 	$SUDO tar xfv "$PACKAGES_TAR" -C /
-	$SUDO apt-get -qq install --no-install-recommends -y "$@"
+	$SUDO apt-get -qq install --no-install-recommends -y "$@" | grep -Ev "$SPAM_EXPR"
 	echo ::endgroup::
 else
 	echo ::group::Install [cache miss]
-	$SUDO apt-get -qq install --no-install-recommends --download-only -y "$@"
+	$SUDO apt-get -qq install --no-install-recommends --download-only -y "$@" | grep -Ev "$SPAM_EXPR"
 	$SUDO rm /var/cache/apt/archives/lock
 	$SUDO rmdir /var/cache/apt/archives/partial
 	tar cvf "$PACKAGES_TAR" -C / var/cache/apt/archives
-	$SUDO apt-get -qq install --no-install-recommends -y "$@"
+	$SUDO apt-get -qq install --no-install-recommends -y "$@" | grep -Ev "$SPAM_EXPR"
 	echo ::endgroup::
 fi
