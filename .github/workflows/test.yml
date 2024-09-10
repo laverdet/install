@@ -20,5 +20,6 @@ jobs:
       - uses: ./
         with:
           packages: |
+            ca-certificates
             curl
             ssh
