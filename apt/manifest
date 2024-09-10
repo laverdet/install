@@ -2,12 +2,12 @@
 set -eu
 
 # Hash sources list
-SOURCES_KEY=$(cat /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null | sha256sum | cut -d' ' -f1 | cut -c-16)
+SOURCES_KEY=$(cat /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null | sha256sum | cut -d' ' -f1)
 MANIFEST_KEY=$(cat /var/cache/apt/heritage 2>/dev/null || true)
 
 # Filter installed packages
 INSTALLED=$(dpkg --get-selections | cut -d"$(printf '\t')" -f1)
-INSTALLED_KEY=$(echo "$INSTALLED" | sha256sum | cut -d' ' -f1 | cut -c-16)
+INSTALLED_KEY=$(echo "$INSTALLED" | sha256sum | cut -d' ' -f1)
 PACKAGES=$(echo "$INSTALLED" | ./exclude "$@" | sort | xargs echo)
 
 # Output manifest

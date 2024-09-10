@@ -2,12 +2,12 @@
 set -eu
 
 # Hash sources list
-SOURCES_KEY=$(sha256sum < /etc/apk/repositories | cut -d' ' -f1 | cut -c-16)
+SOURCES_KEY=$(sha256sum < /etc/apk/repositories | cut -d' ' -f1)
 MANIFEST_KEY=$(cat /var/cache/apk/heritage 2>/dev/null || true)
 
 # Filter installed packages
 INSTALLED=$(apk info 2>/dev/null)
-INSTALLED_KEY=$(echo "$INSTALLED" | sha256sum | cut -d' ' -f1 | cut -c-16)
+INSTALLED_KEY=$(echo "$INSTALLED" | sha256sum | cut -d' ' -f1)
 PACKAGES=$(echo "$INSTALLED" | ./exclude "$@" | sort | xargs echo)
 
 # Output manifest

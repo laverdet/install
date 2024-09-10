@@ -29,17 +29,24 @@ runs:
       env:
         PACKAGES: ${{ inputs.packages }}
       run: |
+        RUNNER_SALT=$(echo "$RUNNER_ARCH" "$RUNNER_ENVIRONMENT" "$RUNNER_OS" "$RUNNER_NAME" | sha256sum | cut -d' ' -f1)
         RESULT=$(echo "$PACKAGES" | ./manifest)
         echo "strategy=${RESULT%%:*}" >> "$GITHUB_OUTPUT"
         RESULT=${RESULT#*:}
-        echo "sources-key=${RESULT%%:*}" >> "$GITHUB_OUTPUT"
+        SOURCES_KEY=${RESULT%%:*}
+        SOURCES_KEY=$(echo "$RUNNER_SALT" "$SOURCES_KEY" | sha256sum | cut -d' ' -f1)
+        echo "sources-key=$(echo "$SOURCES_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
         RESULT=${RESULT#*:}
-        echo "manifest-key=${RESULT%%:*}" >> "$GITHUB_OUTPUT"
+        MANIFEST_KEY=${RESULT%%:*}
+        MANIFEST_KEY=$(echo "$RUNNER_SALT" "$MANIFEST_KEY" | sha256sum | cut -d' ' -f1)
+        echo "manifest-key=$(echo "$MANIFEST_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
         RESULT=${RESULT#*:}
         INSTALLED_KEY=${RESULT%%:*}
+        INSTALLED_KEY=$(echo "$RUNNER_SALT" "$INSTALLED_KEY" | sha256sum | cut -d' ' -f1)
         PACKAGES=${RESULT#*:}
         echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
-        echo "packages-key=$(echo "$INSTALLED_KEY" "$PACKAGES" | sha256sum | cut -d' ' -f1 | cut -c-16)" >> "$GITHUB_OUTPUT"
+        PACKAGES_KEY=$(echo "$RUNNER_SALT" "$INSTALLED_KEY" "$PACKAGES" | sha256sum | cut -d' ' -f1)
+        echo "packages-key=$(echo "$PACKAGES_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
         cat "$GITHUB_OUTPUT"
 
     # Restore sources cache
@@ -49,7 +56,7 @@ runs:
         inputs.cache &&
         steps.manifest.outputs.packages != ''
       with:
-        key: ${{ runner.environment }}/install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
+        key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
         path: .install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Restore packages cache
@@ -57,7 +64,7 @@ runs:
       id: packages
       if: steps.sources.outcome == 'success'
       with:
-        key: ${{ runner.environment }}/install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
+        key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
         path: .install/${{ steps.manifest.outputs.packages-key }}.tar
 
     # Install
@@ -87,7 +94,7 @@ runs:
         steps.sources.outcome == 'success' &&
         steps.sources.outputs.cache-hit != 'true'
       with:
-        key: ${{ runner.environment }}/install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
+        key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
         path: .install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Save packages cache
@@ -96,7 +103,7 @@ runs:
         steps.packages.outcome == 'success' &&
         steps.packages.outputs.cache-hit != 'true'
       with:
-        key: ${{ runner.environment }}/install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
+        key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
         path: .install/${{ steps.manifest.outputs.packages-key }}.tar
 
     # Remove cache archives
