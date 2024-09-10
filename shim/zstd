@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ "$1" = --quiet ] && [ "$2" = --version ]; then
+  echo '1.5.6'
+else
+  exit 1
+fi
