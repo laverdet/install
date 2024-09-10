@@ -35,7 +35,7 @@ if command -v apk >/dev/null 2>&1; then
       build-essential) echo build-base ;;
       dnsutils) echo bind-tools ;;
       libboost-all-dev) echo boost-dev ;;
-      ninja-build) echo ninja ;;
+      ninja-build) echo ninja-is-really-ninja ;;
       ssh) echo openssh ;;
       xz-utils) echo xz ;;
       *) echo "$NAME" ;;
