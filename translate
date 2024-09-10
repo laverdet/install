@@ -38,6 +38,9 @@ if command -v apk >/dev/null 2>&1; then
       ninja-build) echo ninja-is-really-ninja ;;
       ssh) echo openssh ;;
       xz-utils) echo xz ;;
+      clang-tools-[0-9]*) echo "clang${NAME##*-}-extra-tools" ;;
+      clang-[0-9]*) echo "clang${NAME##*-}" ;;
+      llvm[0-9]*) echo "llvm${NAME##*-}" ;;
       *) echo "$NAME" ;;
     esac
   done
