@@ -14,12 +14,12 @@ if [ "$MANIFEST_KEY" != "$SOURCES_KEY" ]; then
 		echo ::endgroup::
 	elif [ -f "$SOURCES_TAR" ]; then
 		echo ::group::Update [cache hit]
-		$SUDO tar xfv "$SOURCES_TAR" -C /
+		$SUDO tar xf "$SOURCES_TAR" -C /
 		echo ::endgroup::
 	else
 		echo ::group::Update [cache miss]
 		$SUDO apk update
-		tar cfv "$SOURCES_TAR" -C / var/cache/apk
+		tar cf "$SOURCES_TAR" -C / var/cache/apk
 		echo ::endgroup::
 	fi
 fi
@@ -35,13 +35,13 @@ else
 	mkdir ~/.install
 	if [ -f "$PACKAGES_TAR" ]; then
 		echo ::group::Install [cache hit]
-		$SUDO tar xfv "$PACKAGES_TAR" -C ~/.install
+		$SUDO tar xf "$PACKAGES_TAR" -C ~/.install
 		$SUDO apk add ~/.install/*.apk
 		echo ::endgroup::
 	else
 		echo ::group::Install [cache miss]
 		apk fetch -R --output ~/.install "$@"
-		tar cvf "$PACKAGES_TAR" -C ~/.install .
+		tar cf "$PACKAGES_TAR" -C ~/.install .
 		$SUDO apk add ~/.install/*.apk
 		echo ::endgroup::
 	fi

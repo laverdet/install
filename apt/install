@@ -14,7 +14,7 @@ if [ "$MANIFEST_KEY" != "$SOURCES_KEY" ]; then
 		echo ::endgroup::
 	elif [ -f "$SOURCES_TAR" ]; then
 		echo ::group::Update [cache hit]
-		$SUDO tar xfv "$SOURCES_TAR" -C /
+		$SUDO tar xf "$SOURCES_TAR" -C /
 		$SUDO apt-get -q update
 		echo ::endgroup::
 	else
@@ -22,7 +22,7 @@ if [ "$MANIFEST_KEY" != "$SOURCES_KEY" ]; then
 		$SUDO apt-get -q update
 		$SUDO rm /var/lib/apt/lists/lock
 		$SUDO rmdir /var/lib/apt/lists/partial
-		tar cfv "$SOURCES_TAR" -C / var/lib/apt/lists
+		tar cf "$SOURCES_TAR" -C / var/lib/apt/lists
 		echo ::endgroup::
 	fi
 fi
@@ -35,7 +35,7 @@ if [ "$PACKAGES_TAR" = - ]; then
 	echo ::endgroup::
 elif [ -f "$PACKAGES_TAR" ]; then
 	echo ::group::Install [cache hit]
-	$SUDO tar xfv "$PACKAGES_TAR" -C /
+	$SUDO tar xf "$PACKAGES_TAR" -C /
 	$SUDO apt-get -qq install --no-install-recommends -y "$@" | (grep -Ev "$SPAM_EXPR" || true)
 	echo ::endgroup::
 else
@@ -43,7 +43,7 @@ else
 	$SUDO apt-get -qq install --no-install-recommends --download-only -y "$@" | (grep -Ev "$SPAM_EXPR" || true)
 	$SUDO rm /var/cache/apt/archives/lock
 	$SUDO rmdir /var/cache/apt/archives/partial
-	tar cvf "$PACKAGES_TAR" -C / var/cache/apt/archives
+	tar cf "$PACKAGES_TAR" -C / var/cache/apt/archives
 	$SUDO apt-get -qq install --no-install-recommends -y "$@" | (grep -Ev "$SPAM_EXPR" || true)
 	echo ::endgroup::
 fi
