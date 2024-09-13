@@ -29,7 +29,7 @@ runs:
       env:
         PACKAGES: ${{ inputs.packages }}
       run: |
-        RUNNER_SALT=$(echo "$RUNNER_ARCH" "$RUNNER_ENVIRONMENT" | sha256sum | cut -d' ' -f1)
+        RUNNER_SALT=$(echo "$RUNNER_ARCH" | sha256sum | cut -d' ' -f1)
         RESULT=$(echo "$PACKAGES" | ./manifest)
         echo "strategy=${RESULT%%:*}" >> "$GITHUB_OUTPUT"
         RESULT=${RESULT#*:}
