@@ -15,7 +15,6 @@ if [ "$MANIFEST_KEY" != "$SOURCES_KEY" ]; then
 	elif [ -f "$SOURCES_TAR" ]; then
 		echo ::group::Update [cache hit]
 		$SUDO tar xf "$SOURCES_TAR" -C /
-		$SUDO apt-get -q update
 		echo ::endgroup::
 	else
 		echo ::group::Update [cache miss]
