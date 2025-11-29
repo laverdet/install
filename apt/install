@@ -3,7 +3,7 @@ set -eu
 SOURCES_KEY=$1; shift
 SOURCES_TAR=$1; shift
 PACKAGES_TAR=$1; shift
-SUDO=$(command -v sudo 2>/dev/null || true)
+SUDO=$(command -v sudo 2>/dev/null || echo eval)
 
 # Update sources
 MANIFEST_KEY=$(cat /var/cache/apt/heritage 2>/dev/null || true)
@@ -33,7 +33,7 @@ if [ "$PACKAGES_TAR" = - ]; then
 	mkfifo .stdout
 	trap 'rm -f .stdout' EXIT
 	grep -Ev "$SPAM_EXPR" < .stdout | cat &
-	$SUDO apt-get -qq install --no-install-recommends -y "$@" > .stdout
+	$SUDO DEBIAN_FRONTEND=noninteractive apt-get -qq install --no-install-recommends -y "$@" > .stdout
 	echo ::endgroup::
 elif [ -f "$PACKAGES_TAR" ]; then
 	echo ::group::Install [cache hit]
@@ -41,7 +41,7 @@ elif [ -f "$PACKAGES_TAR" ]; then
 	mkfifo .stdout
 	trap 'rm -f .stdout' EXIT
 	grep -Ev "$SPAM_EXPR" < .stdout | cat &
-	$SUDO apt-get -qq install --no-install-recommends -y "$@" > .stdout
+	$SUDO DEBIAN_FRONTEND=noninteractive apt-get -qq install --no-install-recommends -y "$@" > .stdout
 	echo ::endgroup::
 else
 	echo ::group::Install [cache miss]
@@ -53,6 +53,6 @@ else
 	$SUDO rmdir /var/cache/apt/archives/partial
 	tar cf "$PACKAGES_TAR" -C / var/cache/apt/archives
 	grep -Ev "$SPAM_EXPR" < .stdout | cat &
-	$SUDO apt-get -qq install --no-install-recommends -y "$@" > .stdout
+	$SUDO DEBIAN_FRONTEND=noninteractive apt-get -qq install --no-install-recommends -y "$@" > .stdout
 	echo ::endgroup::
 fi
