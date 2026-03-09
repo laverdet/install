@@ -80,6 +80,9 @@ runs:
         SOURCES_TAR=-
         if [ ${{ steps.sources.outcome }} = success ]; then
           SOURCES_TAR="$GITHUB_WORKSPACE/.install/$SOURCES_KEY.tar"
+          if [ ${{ steps.packages.outputs.cache-hit != 'true' }} ]; then
+            rm -f "$SOURCES_TAR"
+          fi
         fi
         PACKAGES_TAR=-
         if [ ${{ steps.packages.outcome }} = success ]; then
@@ -92,7 +95,7 @@ runs:
     - uses: actions/cache/save@v4
       if: |
         steps.sources.outcome == 'success' &&
-        steps.sources.outputs.cache-hit != 'true'
+        (steps.sources.outputs.cache-hit != 'true' || steps.packages.outputs.cache-hit != 'true')
       with:
         key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
         path: ./.install/${{ steps.manifest.outputs.sources-key }}.tar
@@ -101,7 +104,7 @@ runs:
     - uses: actions/cache/save@v4
       if: |
         steps.packages.outcome == 'success' &&
-        steps.packages.outputs.cache-hit != 'true'
+        (steps.sources.outputs.cache-hit != 'true' || steps.packages.outputs.cache-hit != 'true')
       with:
         key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
         path: ./.install/${{ steps.manifest.outputs.packages-key }}.tar
