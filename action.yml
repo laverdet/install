@@ -50,7 +50,7 @@ runs:
         cat "$GITHUB_OUTPUT"
 
     # Restore sources cache
-    - uses: actions/cache/restore@v4
+    - uses: actions/cache/restore@v5
       id: sources
       if: |
         inputs.cache &&
@@ -60,7 +60,7 @@ runs:
         path: ./.install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Restore packages cache
-    - uses: actions/cache/restore@v4
+    - uses: actions/cache/restore@v5
       id: packages
       if: steps.sources.outcome == 'success'
       with:
@@ -92,7 +92,7 @@ runs:
         "$STRATEGY/install" "$SOURCES_KEY" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
 
     # Save sources cache
-    - uses: actions/cache/save@v4
+    - uses: actions/cache/save@v5
       if: |
         steps.sources.outcome == 'success' &&
         (steps.sources.outputs.cache-hit != 'true' || steps.packages.outputs.cache-hit != 'true')
@@ -101,7 +101,7 @@ runs:
         path: ./.install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Save packages cache
-    - uses: actions/cache/save@v4
+    - uses: actions/cache/save@v5
       if: |
         steps.packages.outcome == 'success' &&
         (steps.sources.outputs.cache-hit != 'true' || steps.packages.outputs.cache-hit != 'true')
