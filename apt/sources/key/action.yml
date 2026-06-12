@@ -1,0 +1,15 @@
+name: gpg install
+description: download a key from the internet, dearmor, and output
+
+inputs:
+  url:
+    type: string
+    required: true
+
+outputs:
+  key:
+    description: the dearmored key, base64 encoded
+
+runs:
+  using: node24
+  main: key.mjs

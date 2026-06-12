@@ -1,0 +1,61 @@
+name: apt sources
+
+inputs:
+  name:
+    type: string
+    required: true
+  source:
+    type: string
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Save source to /etc/apt/sources.list.d
+    - id: save
+      shell: sh
+      env:
+        NAME: ${{ inputs.name }}
+        SOURCE: ${{ inputs.source }}
+      run: |
+        # Save source
+        set -u
+        SIGNED_BY=$(echo "$SOURCE" | grep -E '^Signed-By:' | cut -d' ' -f2-)
+        if echo "$SIGNED_BY" | grep -qE '^https?://'; then
+          AUTHORITY=$(basename "$SIGNED_BY" | sed -E 's/\..+$//')
+          SOURCE=$(echo "$SOURCE" | grep -vE '^Signed-By:' | sed '$d'; echo "Signed-By: /usr/share/keyrings/$AUTHORITY.gpg")
+        fi
+        SUDO=$(command -v sudo 2>/dev/null || true)
+        if [ -e "/etc/apt/sources.list.d/$NAME.sources" ]; then
+          if [ "$(echo "$SOURCE" | md5sum | awk '{print $1}')" != "$(md5sum "/etc/apt/sources.list.d/$NAME.sources" | awk '{print $1}')" ]; then
+            echo "Source '$NAME' already exists, but is different." 1>&2
+            exit 1
+          else
+            echo "Source '$NAME' already exists." 1>&2
+            unset AUTHORITY
+          fi
+        else
+          echo "$SOURCE" | $SUDO tee "/etc/apt/sources.list.d/$NAME.sources"
+        fi
+        if [ "${AUTHORITY:-}" ]; then
+          echo "authority=$AUTHORITY" >> "$GITHUB_OUTPUT"
+          echo "url=$SIGNED_BY" >> "$GITHUB_OUTPUT"
+        fi
+
+    # Maybe download an external key. There's no to reliably reference this subaction, so it just
+    # uses a tag. Very lame.
+    - if: steps.save.outputs.url != ''
+      id: key
+      uses: laverdet/install/apt/sources/key@v0
+      with:
+        url: ${{ steps.save.outputs.url }}
+
+    # Place the key
+    - if: steps.key.outcome == 'success'
+      shell: sh
+      env:
+        AUTHORITY: ${{ steps.save.outputs.authority }}
+        KEY: ${{ steps.key.outputs.key }}
+      run: |
+        # Save gpg key
+        echo "$KEY" | base64 --decode > "/usr/share/keyrings/$AUTHORITY.gpg"
