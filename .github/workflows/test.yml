@@ -36,3 +36,6 @@ jobs:
       - uses: ./
         with:
           packages: ca-certificates curl git
+          export: |
+            CC=cc
+            CXX=c++

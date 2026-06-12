@@ -4,6 +4,9 @@ inputs:
   cache:
     type: boolean
     default: true
+  export:
+    description: Environment variables to export after installation.
+    type: string
   packages:
     type: string
     required: true
@@ -104,6 +107,7 @@ runs:
       if: steps.manifest.outputs.packages != ''
       working-directory: ${{ github.action_path }}
       env:
+        EXPORT: ${{ inputs.export }}
         PACKAGES: ${{ steps.manifest.outputs.packages }}
         PACKAGES_KEY: ${{ steps.manifest.outputs.packages-key }}
         SOURCES_KEY: ${{ steps.manifest.outputs.sources-key }}
@@ -125,6 +129,10 @@ runs:
         fi
         mkdir -p "$GITHUB_WORKSPACE/.install"
         "$TOOL/install" "$SOURCES_KEY" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
+
+        for LINE in $EXPORT; do
+          echo "$LINE" >> "$GITHUB_ENV"
+        done
 
     # Save sources cache
     - uses: actions/cache/save@v5
