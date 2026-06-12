@@ -8,18 +8,35 @@ jobs:
       matrix:
         host:
           - os: ubuntu-latest
+            installer: apt
           - os: ubuntu-latest
             container: debian:experimental-20240812
+            installer: apt
           - os: ubuntu-latest
             container: alpine:20240807
+            installer: apk
+
     name: ${{ matrix.host.os }} ${{ matrix.host.container }}
     runs-on: ${{ matrix.host.os }}
     container: ${{ matrix.host.container }}
     steps:
       - uses: actions/checkout@v4
+
+      - if: matrix.host.installer == 'apt'
+        uses: ./apt/sources
+        with:
+          name: nodesource24
+          source: |
+            Types: deb
+            URIs: https://deb.nodesource.com/node_24.x
+            Suites: nodistro
+            Components: main
+            Signed-By: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+
       - uses: ./
         with:
           packages: |
             ca-certificates
             curl
+            nodejs
             ssh
