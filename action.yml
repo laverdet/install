@@ -128,7 +128,7 @@ runs:
           PACKAGES_TAR="$GITHUB_WORKSPACE/.install/$PACKAGES_KEY.tar"
         fi
         mkdir -p "$GITHUB_WORKSPACE/.install"
-        "$TOOL/install" "$SOURCES_KEY" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
+        "$TOOL/install" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
 
         for LINE in $EXPORT; do
           echo "$LINE" >> "$GITHUB_ENV"
