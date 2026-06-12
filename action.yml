@@ -7,6 +7,13 @@ inputs:
   packages:
     type: string
     required: true
+  tool:
+    type: choice
+    default: auto
+    options:
+      - auto
+      - apk
+      - apt
 
 runs:
   using: composite
@@ -14,6 +21,8 @@ runs:
     # Workaround for busybox `tar`
     - shell: sh
       run: |
+        # Shim 'tar' and 'zstd'
+
         set -u
         # Checking and creating the directory also serves to avoid adding to the path over and over
         # with repeated invocations.
@@ -21,44 +30,65 @@ runs:
           mkdir "$GITHUB_WORKSPACE/.install"
           echo "$GITHUB_ACTION_PATH/shim-active" >> "$GITHUB_PATH"
         fi
-        ln -s "$GITHUB_ACTION_PATH/shim" "$GITHUB_ACTION_PATH/shim-active"
+        ln -sf "$GITHUB_ACTION_PATH/shim" "$GITHUB_ACTION_PATH/shim-active"
 
-    # Check manifest
+    # Detect package manager
+    - shell: sh
+      id: env
+      env:
+        TOOL: ${{ inputs.tool }}
+      run: |
+        # Detect package manager
+
+        set -u
+        if [ "$TOOL" = auto ]; then
+          if command -v apt-get >/dev/null 2>&1; then
+            # apt [debian & ubuntu]
+            echo "tool=apt" >> "$GITHUB_OUTPUT"
+          elif command -v apk >/dev/null 2>&1; then
+            # apk [alpine]
+            echo "tool=apk" >> "$GITHUB_OUTPUT"
+          else
+            echo "Could not detect package manager" >&2
+            exit 1
+          fi
+        else
+          echo "tool=$TOOL" >> "$GITHUB_OUTPUT"
+        fi
+
+    # Build manifest
     - shell: sh
       id: manifest
       working-directory: ${{ github.action_path }}
       env:
         PACKAGES: ${{ inputs.packages }}
+        TOOL: ${{ steps.env.outputs.tool }}
       run: |
+        # Build manifest
+
         set -u
         RUNNER_SALT=$(echo "$RUNNER_ARCH" | sha256sum | cut -d' ' -f1)
-        RESULT=$(echo "$PACKAGES" | ./manifest)
-        echo "strategy=${RESULT%%:*}" >> "$GITHUB_OUTPUT"
-        RESULT=${RESULT#*:}
+        RESULT=$(echo "$PACKAGES" | "$TOOL/manifest")
         SOURCES_KEY=${RESULT%%:*}
         SOURCES_KEY=$(echo "$RUNNER_SALT" "$SOURCES_KEY" | sha256sum | cut -d' ' -f1)
-        echo "sources-key=$(echo "$SOURCES_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
-        RESULT=${RESULT#*:}
-        MANIFEST_KEY=${RESULT%%:*}
-        MANIFEST_KEY=$(echo "$RUNNER_SALT" "$MANIFEST_KEY" | sha256sum | cut -d' ' -f1)
-        echo "manifest-key=$(echo "$MANIFEST_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
         RESULT=${RESULT#*:}
         INSTALLED_KEY=${RESULT%%:*}
         INSTALLED_KEY=$(echo "$RUNNER_SALT" "$INSTALLED_KEY" | sha256sum | cut -d' ' -f1)
+        RESULT=${RESULT#*:}
         PACKAGES=${RESULT#*:}
-        echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
         PACKAGES_KEY=$(echo "$RUNNER_SALT" "$INSTALLED_KEY" "$PACKAGES" | sha256sum | cut -d' ' -f1)
+        echo "sources-key=$(echo "$SOURCES_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
+        echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
         echo "packages-key=$(echo "$PACKAGES_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
-        cat "$GITHUB_OUTPUT"
 
     # Restore sources cache
     - uses: actions/cache/restore@v5
       id: sources
       if: |
-        inputs.cache &&
+        inputs.cache == 'true' &&
         steps.manifest.outputs.packages != ''
       with:
-        key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
+        key: install/sources/${{ steps.env.outputs.tool }}/${{ steps.manifest.outputs.sources-key }}
         path: ./.install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Restore packages cache
@@ -66,7 +96,7 @@ runs:
       id: packages
       if: steps.sources.outcome == 'success'
       with:
-        key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
+        key: install/packages/${{ steps.env.outputs.tool }}/${{ steps.manifest.outputs.packages-key }}
         path: ./.install/${{ steps.manifest.outputs.packages-key }}.tar
 
     # Install
@@ -77,8 +107,10 @@ runs:
         PACKAGES: ${{ steps.manifest.outputs.packages }}
         PACKAGES_KEY: ${{ steps.manifest.outputs.packages-key }}
         SOURCES_KEY: ${{ steps.manifest.outputs.sources-key }}
-        STRATEGY: ${{ steps.manifest.outputs.strategy }}
+        TOOL: ${{ steps.env.outputs.tool }}
       run: |
+        # Install
+
         set -u
         SOURCES_TAR=-
         if ${{ steps.sources.outcome == 'success' }}; then
@@ -92,7 +124,7 @@ runs:
           PACKAGES_TAR="$GITHUB_WORKSPACE/.install/$PACKAGES_KEY.tar"
         fi
         mkdir -p "$GITHUB_WORKSPACE/.install"
-        "$STRATEGY/install" "$SOURCES_KEY" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
+        "$TOOL/install" "$SOURCES_KEY" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
 
     # Save sources cache
     - uses: actions/cache/save@v5
@@ -100,7 +132,7 @@ runs:
         steps.sources.outcome == 'success' &&
         (steps.sources.outputs.cache-hit != 'true' || steps.packages.outputs.cache-hit != 'true')
       with:
-        key: install/sources/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.sources-key }}
+        key: install/sources/${{ steps.env.outputs.tool }}/${{ steps.manifest.outputs.sources-key }}
         path: ./.install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Save packages cache
@@ -109,24 +141,21 @@ runs:
         steps.packages.outcome == 'success' &&
         (steps.sources.outputs.cache-hit != 'true' || steps.packages.outputs.cache-hit != 'true')
       with:
-        key: install/packages/${{ steps.manifest.outputs.strategy }}/${{ steps.manifest.outputs.packages-key }}
+        key: install/packages/${{ steps.env.outputs.tool }}/${{ steps.manifest.outputs.packages-key }}
         path: ./.install/${{ steps.manifest.outputs.packages-key }}.tar
 
-    # Remove cache archives
+    # Cleanup
     - shell: sh
+      if: always()
       env:
         PACKAGES_KEY: ${{ steps.manifest.outputs.packages-key }}
         SOURCES_KEY: ${{ steps.manifest.outputs.sources-key }}
       run: |
+        # Cleanup
+
         set -u
+        rm "$GITHUB_ACTION_PATH/shim-active"
         rm -f \
           "$GITHUB_WORKSPACE/.install/$PACKAGES_KEY.tar" \
           "$GITHUB_WORKSPACE/.install/$SOURCES_KEY.tar" \
         ;
-
-    # Deactivate `tar` shim
-    - shell: sh
-      if: always()
-      run: |
-        set -u
-        rm "$GITHUB_ACTION_PATH/shim-active"

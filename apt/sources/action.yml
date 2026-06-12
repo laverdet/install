@@ -12,8 +12,8 @@ runs:
   using: composite
   steps:
     # Save source to /etc/apt/sources.list.d
-    - id: save
-      shell: sh
+    - shell: sh
+      id: save
       env:
         NAME: ${{ inputs.name }}
         SOURCE: ${{ inputs.source }}
@@ -27,11 +27,11 @@ runs:
         fi
         SUDO=$(command -v sudo 2>/dev/null || true)
         if [ -e "/etc/apt/sources.list.d/$NAME.sources" ]; then
-          if [ "$(echo "$SOURCE" | md5sum | awk '{print $1}')" != "$(md5sum "/etc/apt/sources.list.d/$NAME.sources" | awk '{print $1}')" ]; then
-            echo "Source '$NAME' already exists, but is different." 1>&2
+          if [ "$(echo "$SOURCE" | sha256sum | awk '{print $1}')" != "$(sha256sum "/etc/apt/sources.list.d/$NAME.sources" | awk '{print $1}')" ]; then
+            echo "Source '$NAME' already exists, but is different." >&2
             exit 1
           else
-            echo "Source '$NAME' already exists." 1>&2
+            echo "Source '$NAME' already exists." >&2
             unset AUTHORITY
           fi
         else
@@ -44,15 +44,15 @@ runs:
 
     # Maybe download an external key. There's no to reliably reference this subaction, so it just
     # uses a tag. Very lame.
-    - if: steps.save.outputs.url != ''
+    - uses: laverdet/install/apt/sources/key@v0
+      if: steps.save.outputs.url != ''
       id: key
-      uses: laverdet/install/apt/sources/key@v0
       with:
         url: ${{ steps.save.outputs.url }}
 
     # Place the key
-    - if: steps.key.outcome == 'success'
-      shell: sh
+    - shell: sh
+      if: steps.key.outcome == 'success'
       env:
         AUTHORITY: ${{ steps.save.outputs.authority }}
         KEY: ${{ steps.key.outputs.key }}

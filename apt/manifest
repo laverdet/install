@@ -1,14 +1,15 @@
 #!/bin/sh
 set -eu
+PACKAGES=$(cat)
 
 # Hash sources list
 SOURCES_KEY=$(cat /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null | sha256sum | cut -d' ' -f1)
-MANIFEST_KEY=$(cat /var/cache/apt/heritage 2>/dev/null || true)
 
 # Filter installed packages
 INSTALLED=$(dpkg --get-selections | cut -d"$(printf '\t')" -f1)
 INSTALLED_KEY=$(echo "$INSTALLED" | sha256sum | cut -d' ' -f1)
-PACKAGES=$(echo "$INSTALLED" | ./exclude "$@" | sort | xargs echo)
+# shellcheck disable=SC2086
+PACKAGES=$(echo "$INSTALLED" | ./exclude $PACKAGES | sort | xargs echo)
 
 # Output manifest
-echo "apt:$SOURCES_KEY:$MANIFEST_KEY:$INSTALLED_KEY:$PACKAGES"
+echo "$SOURCES_KEY:$INSTALLED_KEY:$PACKAGES"

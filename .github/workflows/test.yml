@@ -35,8 +35,4 @@ jobs:
 
       - uses: ./
         with:
-          packages: |
-            ca-certificates
-            curl
-            nodejs
-            ssh
+          packages: ca-certificates curl git
