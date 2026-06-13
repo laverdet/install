@@ -5,11 +5,14 @@ inputs:
     type: boolean
     default: true
   export:
-    description: Environment variables to export after installation.
+    description: Environment variables to export after installation. Newline separated.
     type: string
   packages:
     type: string
     required: true
+  path:
+    description: PATH(s) to add after installation. Newline separated.
+    type: string
   tool:
     type: choice
     default: auto
@@ -130,6 +133,7 @@ runs:
       working-directory: ${{ github.action_path }}
       env:
         EXPORT: ${{ inputs.export }}
+        EXPORT_PATH: ${{ inputs.path }}
         FLAVOR: ${{ steps.tool.outputs.flavor }}
         PACKAGES_KEY: ${{ steps.manifest.outputs.packages-key }}
         PACKAGES: ${{ steps.manifest.outputs.packages }}
@@ -145,6 +149,8 @@ runs:
         SOURCES_TAR=-
         if ${{ steps.sources.outcome == 'success' }}; then
           SOURCES_TAR="$GITHUB_WORKSPACE/.install/$SOURCES_KEY.tar"
+          # Sources cache must be ignored if the packages cache failed, otherwise the package
+          # manager will try (and probably fail) to download stale packages.
           if ${{ steps.packages.outputs.cache-hit != 'true' }}; then
             rm -f "$SOURCES_TAR"
           fi
@@ -156,8 +162,11 @@ runs:
         mkdir -p "$GITHUB_WORKSPACE/.install"
         "$FLAVOR/install" "$TOOL" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
 
-        for LINE in $EXPORT; do
+        echo "$EXPORT" | while read -r LINE; do
           echo "$LINE" >> "$GITHUB_ENV"
+        done
+        echo "$EXPORT_PATH" | while read -r LINE; do
+          echo "$LINE" >> "$GITHUB_PATH"
         done
 
     # Save sources cache
