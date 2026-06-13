@@ -1,31 +1,39 @@
 #!/bin/sh
 set -eu
-APK=$1; shift
+PACMAN=$1; shift
 SOURCES_TAR=$1; shift
 PACKAGES_TAR=$1; shift
-SUDO=$(command -v sudo || true)
+PACMAN_PATH=$(command -v "$PACMAN")
+ROOT=${PACMAN_PATH%/usr/sbin/pacman}
+if [ "$ROOT" = "$PACMAN_PATH" ]; then
+	ROOT=${PACMAN_PATH%/usr/bin/pacman}
+	if [ "$ROOT" = "$PACMAN_PATH" ]; then
+		echo "error: unknown root for $PACMAN_PATH" >&2
+		exit 1
+	fi
+fi
+SUDO=
 
 # Update sources
 if [ "$SOURCES_TAR" = - ]; then
 	echo ::group::Update [no cache]
-	$SUDO "$APK" update
+	$SUDO "$PACMAN" -Sy
 	echo ::endgroup::
 elif [ -f "$SOURCES_TAR" ]; then
 	echo ::group::Update [cache hit]
-	tar xf "$SOURCES_TAR" -C /
+	tar xf "$SOURCES_TAR" -C "$ROOT/"
 	echo ::endgroup::
 else
 	echo ::group::Update [cache miss]
-	$SUDO "$APK" update
-	tar cf "$SOURCES_TAR" -C / var/cache/apk
+	$SUDO "$PACMAN" -Sy
+	tar cf "$SOURCES_TAR" -C "$ROOT/" var/lib/pacman/
 	echo ::endgroup::
 fi
 
 # Install packages
-# nb: `tar` added for cache action compatibility
 if [ "$PACKAGES_TAR" = - ]; then
 	echo ::group::Install [no cache]
-	$SUDO "$APK" add "$@"
+	$SUDO "$PACMAN" -S --noconfirm "$@"
 	echo ::endgroup::
 else
 	rm -rf ~/.install
@@ -33,14 +41,13 @@ else
 	if [ -f "$PACKAGES_TAR" ]; then
 		echo ::group::Install [cache hit]
 		tar xf "$PACKAGES_TAR" -C ~/.install
-		$SUDO "$APK" add ~/.install/*.apk
+		$SUDO "$PACMAN" -U --noconfirm ~/.install/*.tar.zst
 		echo ::endgroup::
 	else
 		echo ::group::Install [cache miss]
-		"$APK" fetch -R --output ~/.install "$@"
+		"$PACMAN" -Sw --noconfirm --cachedir ~/.install "$@"
 		tar cf "$PACKAGES_TAR" -C ~/.install .
-		$SUDO "$APK" add ~/.install/*.apk
+		$SUDO "$PACMAN" -U --noconfirm ~/.install/*.tar.zst
 		echo ::endgroup::
 	fi
-	rm -rf ~/.install/*
 fi

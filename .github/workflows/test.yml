@@ -8,13 +8,23 @@ jobs:
       matrix:
         host:
           - os: ubuntu-latest
-            installer: apt
+            tool: auto
+            packages: ca-certificates curl git
           - os: ubuntu-latest
-            container: debian:experimental-20240812
-            installer: apt
+            container: debian:sid
+            tool: auto
+            packages: ca-certificates curl git
           - os: ubuntu-latest
-            container: alpine:20240807
-            installer: apk
+            container: alpine
+            tool: auto
+            packages: ca-certificates curl git
+          - os: ubuntu-latest
+            container: archlinux
+            tool: auto
+            packages: ca-certificates curl git
+          - os: windows-2025-vs2026
+            tool: /c/msys64/usr/bin/pacman
+            packages: mingw64/mingw-w64-%a-ninja
 
     name: ${{ matrix.host.os }} ${{ matrix.host.container }}
     runs-on: ${{ matrix.host.os }}
@@ -22,8 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - if: matrix.host.installer == 'apt'
-        uses: ./apt/sources
+      - uses: ./apt/sources
+        if: matrix.host.tool == 'apt'
         with:
           name: nodesource24
           source: |
@@ -35,7 +45,5 @@ jobs:
 
       - uses: ./
         with:
-          packages: ca-certificates curl git
-          export: |
-            CC=cc
-            CXX=c++
+          tool: ${{ matrix.host.tool }}
+          packages: ${{ matrix.host.packages }}

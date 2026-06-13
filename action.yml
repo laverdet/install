@@ -13,16 +13,15 @@ inputs:
   tool:
     type: choice
     default: auto
-    options:
-      - auto
-      - apk
-      - apt
 
 runs:
   using: composite
   steps:
-    # Workaround for busybox `tar`
+    # Containers are most likely not compatible with the 'cache' action since `tar` may be busybox,
+    # and `zstd` may not be installed. For containers we shim these with `./shim`. This is skipped
+    # when not running in a container, since the shim does not work in Windows.
     - shell: sh
+      if: job.container.id
       run: |
         # Shim 'tar' and 'zstd'
 
@@ -37,25 +36,32 @@ runs:
 
     # Detect package manager
     - shell: sh
-      id: env
+      id: tool
       env:
         TOOL: ${{ inputs.tool }}
       run: |
         # Detect package manager
-
         set -u
+
         if [ "$TOOL" = auto ]; then
-          if command -v apt-get >/dev/null 2>&1; then
+          if command -v apt-get >/dev/null; then
             # apt [debian & ubuntu]
+            echo "flavor=apt" >> "$GITHUB_OUTPUT"
             echo "tool=apt" >> "$GITHUB_OUTPUT"
-          elif command -v apk >/dev/null 2>&1; then
+          elif command -v apk >/dev/null; then
             # apk [alpine]
+            echo "flavor=apk" >> "$GITHUB_OUTPUT"
             echo "tool=apk" >> "$GITHUB_OUTPUT"
+          elif command -v pacman >/dev/null; then
+            # pacman [arch, msys2 (not automatically detected)]
+            echo "flavor=pacman" >> "$GITHUB_OUTPUT"
+            echo "tool=pacman" >> "$GITHUB_OUTPUT"
           else
             echo "Could not detect package manager" >&2
             exit 1
           fi
         else
+          echo "flavor=$(basename "$TOOL")" >> "$GITHUB_OUTPUT"
           echo "tool=$TOOL" >> "$GITHUB_OUTPUT"
         fi
 
@@ -65,13 +71,24 @@ runs:
       working-directory: ${{ github.action_path }}
       env:
         PACKAGES: ${{ inputs.packages }}
-        TOOL: ${{ steps.env.outputs.tool }}
+        FLAVOR: ${{ steps.tool.outputs.flavor }}
+        TOOL: ${{ steps.tool.outputs.tool }}
       run: |
         # Build manifest
-
         set -u
+
+        # Make sure .install has been created. The shim also uses to avoid re-running, but the shim
+        # may not have run.
+        if command -v cygpath.exe >/dev/null; then
+          GITHUB_WORKSPACE=$(cygpath.exe -u "$GITHUB_WORKSPACE")
+        fi
+        mkdir -p "$GITHUB_WORKSPACE/.install"
+
+        # Invoke $TOOL/manifest
+        RESULT=$(echo "$PACKAGES" | "$FLAVOR/manifest" "$TOOL")
+
+        # Hash results for cache keys
         RUNNER_SALT=$(echo "$RUNNER_ARCH" | sha256sum | cut -d' ' -f1)
-        RESULT=$(echo "$PACKAGES" | "$TOOL/manifest")
         SOURCES_KEY=${RESULT%%:*}
         SOURCES_KEY=$(echo "$RUNNER_SALT" "$SOURCES_KEY" | sha256sum | cut -d' ' -f1)
         RESULT=${RESULT#*:}
@@ -80,6 +97,11 @@ runs:
         RESULT=${RESULT#*:}
         PACKAGES=${RESULT#*:}
         PACKAGES_KEY=$(echo "$RUNNER_SALT" "$INSTALLED_KEY" "$PACKAGES" | sha256sum | cut -d' ' -f1)
+
+        # Outputs
+        if [ ! "$PACKAGES" ]; then
+          echo "No packages to install." >&2
+        fi
         echo "sources-key=$(echo "$SOURCES_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
         echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
         echo "packages-key=$(echo "$PACKAGES_KEY" | cut -c-16)" >> "$GITHUB_OUTPUT"
@@ -91,7 +113,7 @@ runs:
         inputs.cache == 'true' &&
         steps.manifest.outputs.packages != ''
       with:
-        key: install/sources/${{ steps.env.outputs.tool }}/${{ steps.manifest.outputs.sources-key }}
+        key: install/sources/${{ steps.tool.outputs.flavor }}/${{ steps.manifest.outputs.sources-key }}
         path: ./.install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Restore packages cache
@@ -99,7 +121,7 @@ runs:
       id: packages
       if: steps.sources.outcome == 'success'
       with:
-        key: install/packages/${{ steps.env.outputs.tool }}/${{ steps.manifest.outputs.packages-key }}
+        key: install/packages/${{ steps.tool.outputs.flavor }}/${{ steps.manifest.outputs.packages-key }}
         path: ./.install/${{ steps.manifest.outputs.packages-key }}.tar
 
     # Install
@@ -108,14 +130,18 @@ runs:
       working-directory: ${{ github.action_path }}
       env:
         EXPORT: ${{ inputs.export }}
-        PACKAGES: ${{ steps.manifest.outputs.packages }}
+        FLAVOR: ${{ steps.tool.outputs.flavor }}
         PACKAGES_KEY: ${{ steps.manifest.outputs.packages-key }}
+        PACKAGES: ${{ steps.manifest.outputs.packages }}
         SOURCES_KEY: ${{ steps.manifest.outputs.sources-key }}
-        TOOL: ${{ steps.env.outputs.tool }}
+        TOOL: ${{ steps.tool.outputs.tool }}
       run: |
         # Install
-
         set -u
+
+        if command -v cygpath.exe >/dev/null; then
+          GITHUB_WORKSPACE=$(cygpath.exe -u "$GITHUB_WORKSPACE")
+        fi
         SOURCES_TAR=-
         if ${{ steps.sources.outcome == 'success' }}; then
           SOURCES_TAR="$GITHUB_WORKSPACE/.install/$SOURCES_KEY.tar"
@@ -128,7 +154,7 @@ runs:
           PACKAGES_TAR="$GITHUB_WORKSPACE/.install/$PACKAGES_KEY.tar"
         fi
         mkdir -p "$GITHUB_WORKSPACE/.install"
-        "$TOOL/install" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
+        "$FLAVOR/install" "$TOOL" "$SOURCES_TAR" "$PACKAGES_TAR" $PACKAGES
 
         for LINE in $EXPORT; do
           echo "$LINE" >> "$GITHUB_ENV"
@@ -140,7 +166,7 @@ runs:
         steps.sources.outcome == 'success' &&
         (steps.sources.outputs.cache-hit != 'true' || steps.packages.outputs.cache-hit != 'true')
       with:
-        key: install/sources/${{ steps.env.outputs.tool }}/${{ steps.manifest.outputs.sources-key }}
+        key: install/sources/${{ steps.tool.outputs.flavor }}/${{ steps.manifest.outputs.sources-key }}
         path: ./.install/${{ steps.manifest.outputs.sources-key }}.tar
 
     # Save packages cache
@@ -149,20 +175,27 @@ runs:
         steps.packages.outcome == 'success' &&
         (steps.sources.outputs.cache-hit != 'true' || steps.packages.outputs.cache-hit != 'true')
       with:
-        key: install/packages/${{ steps.env.outputs.tool }}/${{ steps.manifest.outputs.packages-key }}
+        key: install/packages/${{ steps.tool.outputs.flavor }}/${{ steps.manifest.outputs.packages-key }}
         path: ./.install/${{ steps.manifest.outputs.packages-key }}.tar
 
     # Cleanup
     - shell: sh
       if: always()
       env:
+        CONTAINER_ID: ${{ job.container.id }}
         PACKAGES_KEY: ${{ steps.manifest.outputs.packages-key }}
         SOURCES_KEY: ${{ steps.manifest.outputs.sources-key }}
       run: |
         # Cleanup
-
         set -u
-        rm "$GITHUB_ACTION_PATH/shim-active"
+
+        if command -v cygpath.exe >/dev/null; then
+          GITHUB_ACTION_PATH=$(cygpath.exe -u "$GITHUB_ACTION_PATH")
+          GITHUB_WORKSPACE=$(cygpath.exe -u "$GITHUB_WORKSPACE")
+        fi
+        if [ "$CONTAINER_ID" ]; then
+          rm "$GITHUB_ACTION_PATH/shim-active"
+        fi
         rm -f \
           "$GITHUB_WORKSPACE/.install/$PACKAGES_KEY.tar" \
           "$GITHUB_WORKSPACE/.install/$SOURCES_KEY.tar" \

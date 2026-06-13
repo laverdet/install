@@ -25,7 +25,7 @@ runs:
           AUTHORITY=$(basename "$SIGNED_BY" | sed -E 's/\..+$//')
           SOURCE=$(echo "$SOURCE" | grep -vE '^Signed-By:' | sed '$d'; echo "Signed-By: /usr/share/keyrings/$AUTHORITY.gpg")
         fi
-        SUDO=$(command -v sudo 2>/dev/null || true)
+        SUDO=$(command -v sudo || true)
         if [ -e "/etc/apt/sources.list.d/$NAME.sources" ]; then
           if [ "$(echo "$SOURCE" | sha256sum | awk '{print $1}')" != "$(sha256sum "/etc/apt/sources.list.d/$NAME.sources" | awk '{print $1}')" ]; then
             echo "Source '$NAME' already exists, but is different." >&2

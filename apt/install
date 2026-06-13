@@ -1,13 +1,14 @@
 #!/bin/sh
 set -eu
+APT=$1; shift
 SOURCES_TAR=$1; shift
 PACKAGES_TAR=$1; shift
-SUDO=$(command -v sudo 2>/dev/null || echo eval)
+SUDO=$(command -v sudo || echo eval)
 
 # Update sources
 if [ "$SOURCES_TAR" = - ]; then
 	echo ::group::Update [no cache]
-	$SUDO apt-get -q update
+	$SUDO "$APT" -q update
 	echo ::endgroup::
 elif [ -f "$SOURCES_TAR" ]; then
 	echo ::group::Update [cache hit]
@@ -15,7 +16,7 @@ elif [ -f "$SOURCES_TAR" ]; then
 	echo ::endgroup::
 else
 	echo ::group::Update [cache miss]
-	$SUDO apt-get -q update
+	$SUDO "$APT" -q update
 	$SUDO rm /var/lib/apt/lists/lock
 	$SUDO rmdir /var/lib/apt/lists/partial
 	tar cf "$SOURCES_TAR" -C / var/lib/apt/lists
@@ -34,16 +35,16 @@ else
 	mkfifo .stdout
 	trap 'rm -f .stdout' EXIT
 	grep -Ev "$SPAM_EXPR" < .stdout | cat &
-	$SUDO apt-get -qq install --no-install-recommends --download-only -y "$@" > .stdout
+	$SUDO "$APT" -qq install --no-install-recommends --download-only -y "$@" > .stdout
 	$SUDO rm /var/cache/apt/archives/lock
 	$SUDO rmdir /var/cache/apt/archives/partial
 	tar cf "$PACKAGES_TAR" -C / var/cache/apt/archives
 	grep -Ev "$SPAM_EXPR" < .stdout | cat &
-	$SUDO DEBIAN_FRONTEND=noninteractive apt-get -qq install --no-install-recommends -y "$@" > .stdout
+	$SUDO DEBIAN_FRONTEND=noninteractive "$APT" -qq install --no-install-recommends -y "$@" > .stdout
 	rm .stdout
 fi
 mkfifo .stdout
 trap 'rm -f .stdout' EXIT
 grep -Ev "$SPAM_EXPR" < .stdout | cat &
-$SUDO DEBIAN_FRONTEND=noninteractive apt-get -qq install --no-install-recommends -y "$@" > .stdout
+$SUDO DEBIAN_FRONTEND=noninteractive "$APT" -qq install --no-install-recommends -y "$@" > .stdout
 echo ::endgroup::

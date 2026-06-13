@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+ARCH=$(uname -m)
+cat | tr ' ' '\n' | while read -r PACKAGE; do
+  echo "$PACKAGE" | sed "s/%a/$ARCH/g"
+done
